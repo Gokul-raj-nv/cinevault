@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: cinevault
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: cinevault_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cinevault -d cinevault_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://cinevault:secret@localhost:5432/cinevault_test
+      SECRET_KEY: ci-only-secret
+      CACHE_ENABLED: "false"
+      SEMANTIC_SEARCH_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - run: pytest tests/ -v
